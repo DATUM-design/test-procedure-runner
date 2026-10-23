@@ -254,7 +254,7 @@
       const tgtG = step.decel.target, tolG = step.decel.tolerance ?? 0.05;
       const between = step.between || {};
       let t = 0, phase = 'accel', phaseT = 0, stops = [], counted = 0;
-      let peak = [], brk = null, coolD = 0, coolT = 0, coolWarn = 0, ui = {}, lastResult = null;
+      let hist = [], peak = [], brk = null, coolD = 0, coolT = 0, coolWarn = 0, ui = {}, lastResult = null;
       const setPhase = p => { phase = p; phaseT = 0; };
       const show = ms => U.fromMs(ms).toFixed(0);
       function finish(v, complete, reason) {
@@ -276,10 +276,10 @@
         timed: true,
         get done() { return phase === 'done'; },
         mount(stage) {
-          if (step.note) stage.append(el('p', { class: 'note', text: step.note }));
+          stage.classList.add('split');
           ui.n = el('div', { class: 'n' });
-          ui.spec = el('div', { class: 'spec', text: step.from + ' → ' + step.to + ' ' + U.label + ' at ' + tgtG + ' ± ' + tolG + ' g' });
-          ui.cool = el('div', { class: 'spec', text: 'Between stops: ' + (between.distance ? fmtDist(between.distance) : between.time ? fmtClock(between.time) : 'none') });
+          ui.spec = el('div', { class: 'spec', text: step.from + '→' + step.to + ' ' + U.label + ' · ' + tgtG + ' ± ' + tolG + ' g' });
+          ui.cool = el('div', { class: 'spec', text: 'Cool ' + (between.distance ? fmtDist(between.distance) : between.time ? fmtClock(between.time) : 'none') + ' between' });
           ui.what = el('span', { class: 'what' }); ui.sub = el('span', { class: 'sub' });
           ui.spd = el('span', { class: 'big', text: '--' });
           ui.dec = el('span', { class: 'big', text: '--' }); ui.decSub = el('span', { class: 'sub' });
@@ -289,24 +289,49 @@
           ui.band = el('div', { class: 'band', style: 'left:' + (100 * (tgtG - tolG) / gmax) + '%;width:' + (100 * 2 * tolG / gmax) + '%' });
           ui.needle = el('div', { class: 'needle', style: 'left:0' });
           const ticks = el('div', { class: 'ticks' }); for (let g = 0; g <= gmax + 1e-9; g += gmax / 4) ticks.append(el('span', { text: g.toFixed(2) }));
-          ui.last = el('div', { class: 'sub' });
+          ui.last = el('div', { class: 'lastStop' });
           ui.tbody = el('tbody');
-          stage.append(
-            el('div', { class: 'counter' }, ui.n, ui.spec, ui.cool),
-            el('div', { class: 'cue' }, el('span', { class: 'lbl', text: 'Now' }), ui.what, ui.sub),
-            el('div', { class: 'grid2' }, el('div', { class: 'read actual' }, el('span', { class: 'lbl', text: 'Speed' }), ui.spd, el('span', { class: 'unit', text: U.label })), ui.dbox),
-            el('div', { class: 'gauge', 'aria-label': 'Deceleration against target band' }, ui.band, ui.needle, ticks),
-            el('div', { class: 'inline' },
-              el('button', { type: 'button', onclick: () => inst.manualStop() }, 'Count stop manually'),
-              el('button', { type: 'button', onclick: () => inst.undo() }, 'Undo last stop')),
-            el('div', { style: 'overflow:auto' }, el('table', { class: 'stoptable' },
-              el('thead', null, el('tr', null, ['#', 'From', 'To', 'Time s', 'Mean g', 'Peak g', 'Result'].map(h => el('th', { text: h })))), ui.tbody)));
+          ui.cv = el('canvas', { 'aria-label': 'Speed with the ideal stop profile ahead' }); ui.ctx = ui.cv.getContext('2d');
+          const main = el('div', { class: 'maincol' }, el('div', { class: 'trace' }, ui.cv));
+          const side = el('div', { class: 'side' },
+            el('div', { class: 'counter wide' }, ui.n, ui.spec, ui.cool),
+            el('div', { class: 'cue wide' }, el('span', { class: 'lbl', text: 'Now' }), ui.what, ui.sub, ui.last),
+            el('div', { class: 'read actual' }, el('span', { class: 'lbl', text: 'Speed' }), ui.spd, el('span', { class: 'unit', text: U.label })), ui.dbox,
+            el('div', { class: 'gauge wide', 'aria-label': 'Deceleration against target band' }, ui.band, ui.needle, ticks),
+            el('details', { class: 'wide results' }, el('summary', { text: 'Stop results and manual count' }),
+              el('div', { class: 'inline' },
+                el('button', { type: 'button', onclick: () => inst.manualStop() }, 'Count stop manually'),
+                el('button', { type: 'button', onclick: () => inst.undo() }, 'Undo last stop')),
+              el('div', { style: 'overflow:auto' }, el('table', { class: 'stoptable' },
+                el('thead', null, el('tr', null, ['#', 'From', 'To', 'Time s', 'Mean g', 'Peak g', 'Result'].map(h => el('th', { text: h })))), ui.tbody))));
+          if (step.note) side.append(el('p', { class: 'note wide', text: step.note }));
+          stage.append(main, side);
+          new ResizeObserver(() => sizeCanvas(ui)).observe(ui.cv); sizeCanvas(ui);
         },
-        manualStop() { if (phase === 'done') return; stops.push({ n: counted + 1, grade: 'manual', reason: 'counted by hand', at: P.clock() }); counted++; P.event('stop', stops[stops.length - 1]); brk = null; setPhase(counted >= step.count ? 'done' : 'cool'); coolD = 0; coolT = 0; T.toast('Stop ' + counted + ' counted by hand'); },
+        // Ideal speed from now: ramp to "from", brake at the target decel to "to", repeat after the cool-down.
+        plan(v) {
+          const aRate = 1.8, bRate = tgtG * G, line = [], fans = [];
+          let tt = t, vv = v ?? 0;
+          const brake = () => { fans.push([tt, vv]); const d = Math.max(0, (vv - to) / bRate); tt += d; vv = to; line.push([tt, vv]); };
+          const rampHold = () => { const d = Math.max(0, (from - vv) / aRate); tt += d; vv = Math.max(vv, from); line.push([tt, vv]); tt += 1.5; line.push([tt, vv]); };
+          line.push([tt, vv]);
+          if (phase === 'accel') { rampHold(); brake(); }
+          else if (phase === 'armed') brake();
+          else if (phase === 'braking' && brk) {
+            line.length = 0; const end = brk.t0 + Math.max(0, (brk.v0 - to) / bRate);
+            line.push([brk.t0, brk.v0], [end, to]); fans.push([brk.t0, brk.v0]); tt = end; vv = to;
+          } else if (phase === 'cool') {
+            const left = between.distance ? Math.max(0, between.distance - coolD) / Math.max(vv, 3) : Math.max(0, (between.time || 0) - coolT);
+            tt += left; line.push([tt, vv]); rampHold(); brake();
+          }
+          return { line, fans };
+        },
+        manualStop() { if (phase === 'done') return; stops.push({ n: counted + 1, grade: 'manual', reason: 'counted by hand', at: P.clock() }); counted++; lastResult = stops[stops.length - 1]; P.event('stop', lastResult); brk = null; setPhase(counted >= step.count ? 'done' : 'cool'); coolD = 0; coolT = 0; T.toast('Stop ' + counted + ' counted by hand'); },
         undo() { for (let i = stops.length - 1; i >= 0; i--) if (stops[i].n != null) { const s = stops.splice(i, 1)[0]; counted--; P.event('undo', { n: s.n }); T.toast('Stop ' + s.n + ' removed'); setPhase('accel'); brk = null; return; } T.toast('No counted stops to undo'); },
         tick(dt, ctx) {
           t += dt; phaseT += dt;
           const v = ctx.speed; if (v == null) return;
+          hist.push([t, v]); if (hist.length > 900) hist.splice(0, 300);
           const dg = T.sensors.decelG();
           if (phase === 'accel') {
             if (v >= from - margin) { setPhase('armed'); T.beep(880, 80); }
@@ -348,6 +373,12 @@
           ui.dbox.className = 'read state ' + (phase === 'braking' ? st : '');
           ui.decSub.textContent = T.sensors.decelSource() === 'gps' ? 'from GPS (coarse)' : T.sensors.decelSource() === 'accel' ? 'accelerometer' : 'simulated';
           ui.needle.style.left = Math.min(100, Math.max(0, 100 * (shown || 0) / ui.gmax)) + '%';
+          if (lastResult) {
+            const s = lastResult, g = s.src !== 'gps' && s.accG != null ? s.accG : s.gpsG;
+            ui.last.textContent = s.grade === 'manual' ? 'Last: counted by hand' : 'Last: ' + (g != null ? g.toFixed(2) + ' g' : '') + ' · ' + ({ ok: 'In band', low: 'Too gentle', high: 'Too hard', bad: 'Not counted (' + s.reason + ')' }[s.grade] || '');
+            ui.last.className = 'lastStop ' + s.grade;
+          }
+          drawStops(ui, t, hist, this.plan(v), { from, to, tgtG, tolG, U, phase });
           if (stops.length !== ui.rows) {
             ui.rows = stops.length; ui.tbody.innerHTML = '';
             stops.slice().reverse().slice(0, 8).forEach(s => {
@@ -376,4 +407,37 @@
       return inst;
     }
   };
+
+  function sizeCanvas(ui) {
+    const c = ui.cv; if (!c) return; const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    c.width = Math.max(1, Math.round(r.width * dpr)); c.height = Math.max(1, Math.round(r.height * dpr)); ui.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function drawStops(ui, tt, hist, plan, o) {
+    const c = ui.cv, ctx = ui.ctx, W = c.clientWidth, H = c.clientHeight; if (!W || !H) return;
+    const { U } = o; ctx.clearRect(0, 0, W, H);
+    const past = 25, fut = 35, x0 = 36, x1 = W - 8, y0 = H - 20, y1 = 10;
+    const top = U.fromMs(o.from) * 1.15, stepU = top > 80 ? 20 : 10, vmaxU = Math.ceil(top / stepU) * stepU;
+    const tx = s => x0 + (s - (tt - past)) / (past + fut) * (x1 - x0);
+    const vy = ms => y0 - U.fromMs(ms) / vmaxU * (y0 - y1);
+    const cLine = T.css('--line'), cMuted = T.css('--muted');
+    ctx.font = '11px ' + T.css('--mono'); ctx.lineWidth = 1;
+    for (let s = 0; s <= vmaxU; s += stepU) { const y = y0 - s / vmaxU * (y0 - y1); ctx.strokeStyle = cLine; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.fillStyle = cMuted; ctx.fillText(String(s), 4, y + 4); }
+    // from / to reference lines
+    [[o.from, 'from'], [o.to, 'to']].forEach(([v, k]) => { const y = vy(v); ctx.setLineDash([5, 5]); ctx.strokeStyle = cMuted; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = cMuted; ctx.fillText(k + ' ' + U.fromMs(v).toFixed(0), x1 - 58, y - 4); });
+    // brake fans: target decel ± tolerance
+    ctx.fillStyle = T.css('--band');
+    plan.fans.forEach(([ts, vs]) => {
+      const lo = (o.tgtG - o.tolG) * G, hi = (o.tgtG + o.tolG) * G, end = s => ts + Math.max(0, (vs - o.to) / s);
+      ctx.beginPath(); ctx.moveTo(tx(ts), vy(vs)); ctx.lineTo(tx(end(lo)), vy(o.to)); ctx.lineTo(tx(end(hi)), vy(o.to)); ctx.closePath(); ctx.fill();
+    });
+    // ideal line
+    ctx.beginPath(); plan.line.forEach(([s, v], i) => i ? ctx.lineTo(tx(s), vy(v)) : ctx.moveTo(tx(s), vy(v)));
+    ctx.strokeStyle = T.css('--target'); ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.setLineDash(o.phase === 'braking' ? [] : [8, 6]); ctx.stroke(); ctx.setLineDash([]);
+    // actual
+    if (hist.length > 1) { ctx.beginPath(); let st = false; for (const h of hist) { if (h[0] < tt - past) continue; const x = tx(h[0]), y = vy(h[1]); st ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), st = true); } ctx.strokeStyle = T.css('--actual'); ctx.lineWidth = 2.5; ctx.stroke(); }
+    const xn = tx(tt); ctx.strokeStyle = cMuted; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(xn, y1); ctx.lineTo(xn, y0); ctx.stroke();
+    const last = hist.length ? hist[hist.length - 1][1] : null;
+    if (last != null) { ctx.fillStyle = T.css('--actual'); ctx.beginPath(); ctx.arc(xn, vy(last), 5, 0, 7); ctx.fill(); }
+    ctx.fillStyle = cMuted; ctx.fillText('now', xn + 4, y1 + 12);
+  }
 })(window.TPR);

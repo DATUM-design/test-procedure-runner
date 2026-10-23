@@ -1,6 +1,7 @@
 {
   "id": "sensor-check",
   "name": "Sensor check",
+  "group": "Setup",
   "description": "Short drive to confirm GPS speed and the accelerometer before a real procedure. Compare against the car's speedo and logger.",
   "units": "kmh",
   "steps": [
@@ -24,8 +25,13 @@
       "count": 2,
       "from": 50,
       "to": 10,
-      "decel": { "target": 0.3, "tolerance": 0.1 },
-      "between": { "time": 20 }
+      "decel": {
+        "target": 0.3,
+        "tolerance": 0.1
+      },
+      "between": {
+        "time": 20
+      }
     }
   ]
 }

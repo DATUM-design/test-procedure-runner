@@ -10,7 +10,7 @@ It runs in the browser, works offline after the first visit, and can be added to
 2. **Share → Add to Home Screen**, then open it from the home-screen icon.
 3. **Sensors → Enable sensors.** Allow location (choose *precise*) and motion.
 4. With the car stationary on level ground and the phone in its mount, tap **Zero accelerometer**.
-5. Pick a procedure. The checklist and record steps use **Continue**; driving steps use **Start / Pause**, then **Next step** when complete.
+5. Pick a procedure. Driving steps use **Start / Pause**, then **Next step** when complete. Checklist and record steps, if a procedure has them, use **Continue**.
 6. When the run ends, use **Export CSV** to share the log and summary (AirDrop, email, Files, Teams).
 
 **Rehearse first:** set Sensors → Speed source to *Simulated* to run any procedure at the desk.
@@ -42,13 +42,16 @@ A procedure is a JSON file. Add it to `procedures/` and list it in `procedures/i
 {
   "id": "my-procedure",
   "name": "Shown on the home screen",
+  "group": "Millbrook",
   "description": "One line",
   "units": "kmh",
   "steps": [ ... ]
 }
 ```
 
-`units` is `"kmh"` or `"mph"` and applies to every speed in the file.
+`units` is `"kmh"` or `"mph"` and applies to every speed in the file. `group` sorts procedures into sections on the home screen, for example by proving ground (`"Millbrook"`, `"Nardo"`, `"Idiada"`). Without one, a procedure goes under *General*.
+
+During any test, **Notes** records the vehicle ID, driver and free text with the run. The vehicle and driver are remembered for the next test. **End test** (tap twice) finishes the run at any point.
 
 ### Step types
 
@@ -59,7 +62,7 @@ A procedure is a JSON file. Add it to `procedures/` and list it in `procedures/i
 | `timer` | Countdown, e.g. soak or settle | `duration` (s) |
 | `hold` | Hold a speed for a time or distance | `speed`, `tolerance`, and `duration` (s) or `distance` (m) |
 | `trace` | Follow a speed trace with a tolerance band | `segments: [{ cycle: "udds" } \| { idle: 120 }]`, `tolerance: { speed, time }` |
-| `stops` | Repeated braking stops with a counter and decel grading | `count`, `from`, `to`, `decel: { target, tolerance }` (g), `between: { distance }` (m) or `{ time }` (s) |
+| `stops` | Repeated braking stops with a live speed graph, auto counter and decel grading | `count`, `from`, `to`, `decel: { target, tolerance }` (g), `between: { distance }` (m) or `{ time }` (s) |
 
 Every step takes an optional `name` and `note`.
 

@@ -1,5 +1,5 @@
 /* Offline support: the app shell is cached on first visit, procedures and cycles are refreshed when online. */
-const VERSION = 'tpr-v1';
+const VERSION = 'tpr-v2';
 const SHELL = ['./', 'index.html', 'app.css', 'js/util.js', 'js/store.js', 'js/sensors.js', 'js/steps.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
   'procedures/index.json', 'cycles/udds.json', 'cycles/nycc.json'];

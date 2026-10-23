@@ -51,14 +51,19 @@
   async function renderHome() {
     pills($('homeSensors'));
     const list = $('procList'); list.innerHTML = '';
-    for (const { p, custom } of allProcs()) {
+    const groups = [];
+    for (const it of allProcs()) { const g = (it.p.group || 'General'); let e = groups.find(x => x.name === g); if (!e) groups.push(e = { name: g, items: [] }); e.items.push(it); }
+    for (const grp of groups) {
+    if (groups.length > 1 || grp.name !== 'General') list.append(el('h3', { class: 'lbl group', text: grp.name }));
+    for (const { p, custom } of grp.items) {
       if (p.broken) { list.append(el('div', { class: 'card' }, el('div', { class: 't', text: p.name }), el('div', { class: 'd', text: 'Could not load: ' + p.error }))); continue; }
       const card = el('button', { class: 'card', type: 'button', onclick: () => startRun(p) },
         el('div', { class: 't', text: p.name + (custom ? '  ·  on this device' : '') }),
         p.description ? el('div', { class: 'd', text: p.description }) : null,
-        el('div', { class: 'm', text: p.steps.length + ' steps · ' + estimate(p).join(' · ') }));
+        el('div', { class: 'm', text: (p.steps.length > 1 ? p.steps.length + ' steps · ' : '') + estimate(p).join(' · ') }));
       list.append(card);
       if (custom) list.append(el('button', { class: 'ghost', type: 'button', style: 'justify-self:start', onclick: () => { state.custom = state.custom.filter(x => x.id !== p.id); saveCustom(); renderHome(); } }, 'Remove "' + p.name + '"'));
+    }
     }
     const fileIn = el('input', { type: 'file', accept: '.json,application/json', id: 'procFile', hidden: true, onchange: async e => {
       const f = e.target.files[0]; if (!f) return;
@@ -74,7 +79,7 @@
     for (const r of all.slice(0, 30)) {
       const when = new Date(r.started);
       runs.append(el('button', { class: 'card run', type: 'button', onclick: () => openDetail(r.id) },
-        el('div', null, el('div', { class: 't', text: r.procName }), el('div', { class: 'm', text: when.toLocaleDateString() + ' ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + fmtClock(((r.ended || r.updated || r.started) - r.started) / 1000) + ' · ' + r.source })),
+        el('div', null, el('div', { class: 't', text: r.procName + (r.notes?.vehicle ? ' · ' + r.notes.vehicle : '') }), el('div', { class: 'm', text: when.toLocaleDateString() + ' ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + fmtClock(((r.ended || r.updated || r.started) - r.started) / 1000) + ' · ' + r.source })),
         el('span', { class: 'pill ' + (r.status === 'complete' ? 'on' : r.status === 'interrupted' ? 'bad' : 'warn'), text: r.status.toUpperCase() })));
     }
   }
@@ -127,12 +132,14 @@
     if (S.source === 'device') enableDevice();
     p = JSON.parse(JSON.stringify(p));
     const U = T.units[p.units];
-    const run = { id: T.uid(), procId: p.id, procName: p.name, units: p.units, proc: p, started: Date.now(), updated: Date.now(), status: 'active', step: 0, results: {}, events: [], source: S.source, device: navigator.userAgent };
+    let last = {}; try { last = JSON.parse(localStorage.getItem('tpr.lastNotes') || '{}'); } catch (e) {}
+    const run = { id: T.uid(), procId: p.id, procName: p.name, units: p.units, proc: p, started: Date.now(), updated: Date.now(), status: 'active', step: 0, results: {}, events: [], source: S.source, device: navigator.userAgent,
+      notes: { vehicle: last.vehicle || '', driver: last.driver || '', text: '' } };
     R = { run, p, U, idx: -1, h: null, running: false, stepStarted: false, t: 0, dist: 0, rows: [], seq: 0, lastFlush: performance.now(), lastTick: performance.now(), pendingMark: '', markN: 0 };
     try { await store.putRun(run); } catch (e) { T.toast('Storage unavailable: this run will not be saved', 5000); }
     show('run');
     $('rProc').textContent = p.name;
-    enterStep(0);
+    enterStep(0); updateNotesBtn();
     T.holdWake();
   }
   const clock = () => R ? (Date.now() - R.run.started) / 1000 : 0;
@@ -174,15 +181,30 @@
     if (R.running) { R.stepStarted = true; event('start'); T.holdWake(); } else { event('pause'); T.toast('Paused. The step clock is stopped.'); }
     updatePrimary();
   };
-  $('btnMark').onclick = () => { if (!R) return; R.markN++; R.pendingMark = 'M' + R.markN; event('marker', { n: R.markN }); T.beep(600, 80); T.toast('Marker ' + R.markN); };
+  $('btnMark').onclick = () => { $('runMenu').hidden = true; if (!R) return; R.markN++; R.pendingMark = 'M' + R.markN; event('marker', { n: R.markN }); T.beep(600, 80); T.toast('Marker ' + R.markN); };
+  // Notes: vehicle ID, driver and free text, editable any time without pausing.
+  $('btnNotes').onclick = () => {
+    if (!R) return; const n = R.run.notes;
+    $('nVehicle').value = n.vehicle; $('nDriver').value = n.driver; $('nText').value = n.text;
+    $('runMenu').hidden = true; $('notesSheet').hidden = false;
+  };
+  $('btnNotesDone').onclick = () => {
+    $('notesSheet').hidden = true; if (!R) return;
+    R.run.notes = { vehicle: $('nVehicle').value.trim(), driver: $('nDriver').value.trim(), text: $('nText').value.trim() };
+    try { localStorage.setItem('tpr.lastNotes', JSON.stringify({ vehicle: R.run.notes.vehicle, driver: R.run.notes.driver })); } catch (e) {}
+    updateNotesBtn(); persist(); T.toast('Notes saved');
+  };
+  function updateNotesBtn() { const n = R && R.run.notes; $('btnNotes').textContent = n && n.vehicle ? n.vehicle : 'Notes'; }
   $('btnMenu').onclick = () => { const m = $('runMenu'); m.hidden = !m.hidden; $('btnMenu').setAttribute('aria-expanded', String(!m.hidden)); };
   $('btnCloseMenu').onclick = () => { $('runMenu').hidden = true; };
   $('btnSkip').onclick = () => { $('runMenu').hidden = true; if (!R) return; event('skip'); next(); };
   $('btnBack').onclick = () => { $('runMenu').hidden = true; if (R && R.idx > 0) { event('back'); enterStep(R.idx - 1); } };
-  let endArm = 0;
+  let endArm = 0, endTimer = 0;
   $('btnEnd').onclick = () => {
-    if (Date.now() - endArm > 3000) { endArm = Date.now(); $('btnEnd').textContent = 'Tap again to end'; setTimeout(() => { $('btnEnd').textContent = 'End run'; }, 3000); return; }
-    $('runMenu').hidden = true; $('btnEnd').textContent = 'End run'; if (!R) return; finishStep(); endRun('ended');
+    if (!R) return;
+    if (Date.now() - endArm > 3000) { endArm = Date.now(); $('btnEnd').textContent = 'Tap to confirm'; clearTimeout(endTimer); endTimer = setTimeout(() => { $('btnEnd').textContent = 'End test'; }, 3000); return; }
+    endArm = 0; $('btnEnd').textContent = 'End test'; $('runMenu').hidden = true; $('notesSheet').hidden = true;
+    finishStep(); endRun(R.h.done && R.idx + 1 >= R.p.steps.length ? 'complete' : 'ended');
   };
 
   async function persist(ctx = R) {
@@ -204,9 +226,9 @@
   setInterval(() => {
     const now = performance.now();
     const dt = R ? Math.min(0.5, (now - R.lastTick) / 1000) : 0.1;
-    if (S.source === 'sim') S.simWant = R && R.running && R.h.simWant ? R.h.simWant() : { v: 0, accel: 2, decel: 3 };
+    if (S.source === 'sim') S.simWant = R && R.h && R.running && R.h.simWant ? R.h.simWant() : { v: 0, accel: 2, decel: 3 };
     S.tick(dt);
-    if (!R) return;
+    if (!R || !R.h) return;
     R.lastTick = now;
     const v = S.currentSpeed();
     if (v != null) R.dist += v * dt;
@@ -230,9 +252,10 @@
 
   // Screen refresh
   function frame() {
-    if (R && !$('run').hidden) {
+    if (R && R.h && !$('run').hidden) {
       const ctx = { speed: S.currentSpeed(), U: R.U };
       R.h.running = R.running;
+      $('stage').classList.toggle('is-running', R.running);
       if (R.h.frame) R.h.frame(ctx);
       $('rClock').textContent = fmtClock(clock());
       pills($('rPills'));
@@ -258,7 +281,11 @@
     const kv = el('dl', { class: 'kv' });
     [['Started', when.toLocaleString()], ['Duration', fmtClock(((r.ended || r.updated) - r.started) / 1000)], ['Status', r.status], ['Speed source', r.source], ['Steps done', Object.keys(r.results).length + ' of ' + r.proc.steps.length]]
       .forEach(([k, v]) => kv.append(el('dt', { text: k }), el('dd', { text: v })));
+    const n = r.notes || {};
+    if (n.vehicle) kv.prepend(el('dt', { text: 'Vehicle' }), el('dd', { text: n.vehicle }));
+    if (n.driver) kv.append(el('dt', { text: 'Driver' }), el('dd', { text: n.driver }));
     body.append(el('div', { class: 'panel' }, kv));
+    if (n.text) body.append(el('div', { class: 'panel' }, el('div', { class: 'lbl', text: 'Notes' }), el('div', { text: n.text, style: 'white-space:pre-wrap' })));
     for (const [i, res] of Object.entries(r.results)) {
       const p = el('div', { class: 'panel' }, el('div', { class: 'lbl', text: 'Step ' + (+i + 1) + ' · ' + res.name }));
       if (res.values) res.values.forEach(v => p.append(el('div', { class: 'm', text: v.label + ': ' + (v.value || '–') + (v.value && v.unit ? ' ' + v.unit : '') })));
@@ -279,7 +306,8 @@
     const r = await store.getRun(id), rows = await store.samples(id);
     const base = r.procId + '_' + new Date(r.started).toISOString().slice(0, 16).replace(/[:T]/g, '-');
     const logCsv = T.csv([COLS, ...rows]);
-    const sum = [['procedure', r.procName], ['started_utc', new Date(r.started).toISOString()], ['ended_utc', r.ended ? new Date(r.ended).toISOString() : ''], ['status', r.status], ['speed_source', r.source], ['units', r.units], ['device', r.device], []];
+    const sum = [['procedure', r.procName], ['started_utc', new Date(r.started).toISOString()], ['ended_utc', r.ended ? new Date(r.ended).toISOString() : ''], ['status', r.status], ['speed_source', r.source], ['units', r.units], ['device', r.device],
+      ['vehicle', r.notes?.vehicle || ''], ['driver', r.notes?.driver || ''], ['notes', r.notes?.text || ''], []];
     for (const [i, res] of Object.entries(r.results)) {
       sum.push(['step ' + (+i + 1), res.name, res.type]);
       if (res.values) res.values.forEach(v => sum.push(['', v.label, v.value, v.unit]));

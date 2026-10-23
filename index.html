@@ -82,14 +82,24 @@
     <div class="stage" id="stage"></div>
     <footer class="bar controls">
       <button id="btnPrimary" class="primary">Start</button>
-      <button id="btnMark">Marker</button>
-      <button id="btnMenu" aria-expanded="false" aria-controls="runMenu">More</button>
+      <button id="btnNotes">Notes</button>
+      <button id="btnEnd" class="danger">End test</button>
+      <button id="btnMenu" aria-expanded="false" aria-controls="runMenu" aria-label="More options">•••</button>
     </footer>
     <div class="menu" id="runMenu" hidden>
+      <button id="btnMark">Drop a marker in the log</button>
       <button id="btnBack">Previous step</button>
       <button id="btnSkip">Skip step</button>
-      <button id="btnEnd" class="danger">End run</button>
       <button id="btnCloseMenu">Close</button>
+    </div>
+    <div class="menu sheet" id="notesSheet" hidden>
+      <div class="lbl">Test notes</div>
+      <div class="grid2">
+        <label class="field" for="nVehicle"><span>Vehicle ID</span><input id="nVehicle" type="text" autocomplete="off" autocapitalize="characters"></label>
+        <label class="field" for="nDriver"><span>Driver</span><input id="nDriver" type="text" autocomplete="off"></label>
+      </div>
+      <label class="field" for="nText"><span>Notes</span><textarea id="nText" placeholder="Track, conditions, anything odd during the test"></textarea></label>
+      <button id="btnNotesDone" class="primary">Done</button>
     </div>
     <div id="toast" role="status"></div>
   </section>
