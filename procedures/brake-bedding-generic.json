@@ -1,0 +1,70 @@
+{
+  "id": "brake-bedding-generic",
+  "name": "Brake bedding (generic example)",
+  "description": "Example sequence only: warm-up, bedding and hard stops with cooling drives. Replace the numbers with your own specification before use.",
+  "units": "kmh",
+  "steps": [
+    {
+      "type": "checklist",
+      "name": "Pre-checks",
+      "items": [
+        "New pads/discs fitted and torque-checked",
+        "Brake fluid level and pedal feel OK",
+        "Test area clear; straight with run-off",
+        "Phone mounted rigidly; accelerometer zeroed with the car stationary"
+      ]
+    },
+    {
+      "type": "record",
+      "name": "Start",
+      "fields": [
+        { "key": "odo", "label": "Odometer", "unit": "km" },
+        { "key": "tamb", "label": "Ambient temperature", "unit": "°C" },
+        { "key": "disc_temp", "label": "Disc temperature (front)", "unit": "°C" }
+      ]
+    },
+    {
+      "type": "stops",
+      "name": "Warm-up stops",
+      "count": 5,
+      "from": 80,
+      "to": 30,
+      "decel": { "target": 0.25, "tolerance": 0.05 },
+      "between": { "distance": 400 }
+    },
+    {
+      "type": "stops",
+      "name": "Bedding stops",
+      "count": 20,
+      "from": 100,
+      "to": 30,
+      "decel": { "target": 0.4, "tolerance": 0.05 },
+      "between": { "distance": 500 }
+    },
+    {
+      "type": "stops",
+      "name": "Hard stops",
+      "count": 5,
+      "from": 100,
+      "to": 10,
+      "decel": { "target": 0.6, "tolerance": 0.1 },
+      "between": { "distance": 1000 }
+    },
+    {
+      "type": "hold",
+      "name": "Cool-down drive",
+      "note": "No braking. Keep speed steady to cool the brakes.",
+      "speed": 70,
+      "tolerance": 10,
+      "distance": 3000
+    },
+    {
+      "type": "record",
+      "name": "Finish",
+      "fields": [
+        { "key": "disc_temp_end", "label": "Disc temperature (front)", "unit": "°C" },
+        { "key": "notes", "label": "Notes: judder, odour, pedal", "type": "text" }
+      ]
+    }
+  ]
+}

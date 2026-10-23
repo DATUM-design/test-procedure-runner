@@ -1,0 +1,58 @@
+{
+  "id": "running-loss-fttp",
+  "name": "FTTP running-loss drive",
+  "description": "40 CFR 86.129-94(d) fuel tank temperature profile drive: UDDS, idle, 2 x NYCC, idle, UDDS, idle.",
+  "units": "mph",
+  "steps": [
+    {
+      "type": "checklist",
+      "name": "Pre-drive checks",
+      "items": [
+        "Tank thermocouples and pressure transducer logging on the IPE",
+        "Logger time synced; tank pressure zeroed",
+        "Met mast logging ambient, wind and road surface",
+        "Route confirmed with Millbrook; safe stop points briefed",
+        "A/C: normal mode, coldest, high fan (auto climate: auto, 72 °F / 22 °C)",
+        "Phone mounted rigidly and sensors showing a GPS fix"
+      ]
+    },
+    {
+      "type": "record",
+      "name": "Start conditions",
+      "fields": [
+        { "key": "odo_start", "label": "Odometer", "unit": "mi" },
+        { "key": "tamb_start", "label": "Ambient temperature", "unit": "°C" },
+        { "key": "tsur_start", "label": "Road surface temperature", "unit": "°C" },
+        { "key": "wind_start", "label": "Wind speed", "unit": "mph" },
+        { "key": "cloud_start", "label": "Cloud cover", "unit": "%" },
+        { "key": "tliq_start", "label": "Fuel temperature (Tliq)", "unit": "°C" }
+      ]
+    },
+    {
+      "type": "trace",
+      "name": "Running-loss cycle",
+      "note": "Engine on. Pull onto the route at minimum throttle within 60 s, then follow the trace.",
+      "segments": [
+        { "cycle": "udds" },
+        { "idle": 120 },
+        { "cycle": "nycc" },
+        { "cycle": "nycc" },
+        { "idle": 120 },
+        { "cycle": "udds" },
+        { "idle": 120 }
+      ],
+      "tolerance": { "speed": 2, "time": 1 }
+    },
+    {
+      "type": "record",
+      "name": "End conditions",
+      "fields": [
+        { "key": "odo_end", "label": "Odometer", "unit": "mi" },
+        { "key": "tamb_end", "label": "Ambient temperature", "unit": "°C" },
+        { "key": "tliq_end", "label": "Fuel temperature (Tliq)", "unit": "°C" },
+        { "key": "pmax", "label": "Peak tank pressure", "unit": "inH2O" },
+        { "key": "notes", "label": "Notes", "type": "text" }
+      ]
+    }
+  ]
+}

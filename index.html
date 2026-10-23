@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Test Procedure Runner</title>
+<meta name="theme-color" content="#11161c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Test Runner">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME -->
+  <section id="home" class="screen">
+    <header class="bar top">
+      <h1>Test Procedure Runner</h1>
+      <span class="spacer"></span>
+      <button id="btnSensors" class="ghost">Sensors</button>
+    </header>
+
+    <div class="sensorstrip" id="homeSensors"></div>
+
+    <h2 class="lbl">Procedures</h2>
+    <div id="procList" class="list"></div>
+
+    <h2 class="lbl">Runs on this device</h2>
+    <div id="runList" class="list"></div>
+    <p class="fine">Runs are saved on this device only. Export them to keep a copy.</p>
+  </section>
+
+  <!-- SENSORS -->
+  <section id="sensors" class="screen" hidden>
+    <header class="bar top">
+      <button class="ghost" data-back>Back</button>
+      <h1>Sensors</h1>
+    </header>
+    <div class="panel">
+      <label class="row" for="selSrc">Speed source
+        <select id="selSrc">
+          <option value="device">Phone / tablet GPS</option>
+          <option value="sim">Simulated (rehearsal)</option>
+          <option value="serial">USB / Bluetooth NMEA GPS</option>
+        </select>
+      </label>
+      <label class="row" for="selBaud" id="baudRow" hidden>Baud
+        <select id="selBaud"><option>4800</option><option selected>9600</option><option>38400</option><option>57600</option><option>115200</option></select>
+      </label>
+      <div class="btnrow">
+        <button id="btnEnable" class="primary">Enable sensors</button>
+        <button id="btnZero">Zero accelerometer</button>
+      </div>
+      <p class="fine" id="sensorHelp">Allow location and motion when asked. Zero the accelerometer with the car stationary on level ground and the phone in its mount.</p>
+    </div>
+    <div class="grid2">
+      <div class="read"><span class="lbl">GPS speed</span><span class="big" id="sSpeed">--</span><span class="unit" id="sSpeedU">km/h</span></div>
+      <div class="read"><span class="lbl">Long. accel</span><span class="big" id="sAcc">--</span><span class="unit">g</span></div>
+    </div>
+    <dl class="kv" id="sDetail"></dl>
+  </section>
+
+  <!-- RUN -->
+  <section id="run" class="screen run" hidden>
+    <header class="bar top run-head">
+      <div class="titles">
+        <div class="procname" id="rProc"></div>
+        <div class="stepname" id="rStep"></div>
+      </div>
+      <span class="spacer"></span>
+      <div class="pills" id="rPills"></div>
+      <div class="clock" id="rClock">00:00</div>
+    </header>
+    <div class="steps" id="rSteps" aria-label="Steps"></div>
+    <div class="stage" id="stage"></div>
+    <footer class="bar controls">
+      <button id="btnPrimary" class="primary">Start</button>
+      <button id="btnMark">Marker</button>
+      <button id="btnMenu" aria-expanded="false" aria-controls="runMenu">More</button>
+    </footer>
+    <div class="menu" id="runMenu" hidden>
+      <button id="btnBack">Previous step</button>
+      <button id="btnSkip">Skip step</button>
+      <button id="btnEnd" class="danger">End run</button>
+      <button id="btnCloseMenu">Close</button>
+    </div>
+    <div id="toast" role="status"></div>
+  </section>
+
+  <!-- RUN DETAIL -->
+  <section id="detail" class="screen" hidden>
+    <header class="bar top">
+      <button class="ghost" data-back>Back</button>
+      <h1 id="dTitle">Run</h1>
+    </header>
+    <div id="dBody"></div>
+  </section>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/store.js"></script>
+<script src="js/sensors.js"></script>
+<script src="js/steps.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "procedures": [
+    "running-loss-fttp.json",
+    "brake-bedding-generic.json",
+    "sensor-check.json"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Test Procedure Runner",
+  "short_name": "Test Runner",
+  "description": "Driver's aid and step-by-step runner for vehicle test procedures, with phone GPS and accelerometer logging.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#11161c",
+  "theme_color": "#11161c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
